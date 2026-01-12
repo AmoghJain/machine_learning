@@ -10,23 +10,23 @@ from generator import Generator
 from discriminator import Discriminator
 
 # define parameters
-LR = 0.0001
+LR = 0.0002
 EPOCHS = 40
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # add noise
 def add_gaussian_noise(image_tensor, noise_factor=0.5):
     noise_tensor = torch.randn_like(image_tensor) * noise_factor
     noisy_image = image_tensor + noise_tensor
-    return noisy_image
+    return torch.clamp(noisy_image, -1., 1.)
 
 # load data
 print("Loading data...")
 
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((.1307), (.3801))
+    transforms.Normalize((.5), (.5))
 ])
 
 train_dataset = MNIST("../../../data", download=False, transform=transform, train=True)
@@ -52,12 +52,11 @@ print("Training started...")
 for epoch in range(EPOCHS):
     for batch_idx, (clean_images, _) in enumerate(train_loader):
         clean_images = clean_images.to(DEVICE)
-        
         ## train discriminator
         disc_opt.zero_grad()
 
         # prepare data
-        noisy_images = add_gaussian_noise(clean_images)
+        noisy_images = add_gaussian_noise(clean_images).to(DEVICE)
         denoised_images = gen(noisy_images)
 
         # create labels
@@ -72,7 +71,7 @@ for epoch in range(EPOCHS):
         disc_noisy_outputs = disc(denoised_images.detach())
         disc_noisy_loss = gan_loss(disc_noisy_outputs, noisy_labels)
 
-        disc_loss = (disc_clean_loss + disc_noisy_loss)/2.
+        disc_loss = disc_clean_loss + disc_noisy_loss
         disc_loss.backward()
         disc_opt.step()
 
